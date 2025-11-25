@@ -1,0 +1,4 @@
+1)
+"C:\Program Files (x86)\Eclipse\Sumo\bin\netgenerate.exe" --grid --grid.number=4 --grid.length=200 --output-file=grid_sehir.net.xml --default.type traffic_light --tls.guess true
+
+2)python "C:\Program Files (x86)\Eclipse\Sumo\tools\randomTrips.py" -n grid_sehir.net.xml -r traffic.rou.xml -e 3600 -p 5.0 --fringe-factor 10
