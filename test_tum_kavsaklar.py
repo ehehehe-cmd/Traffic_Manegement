@@ -6,25 +6,26 @@ import sumo_rl
 # --- AYARLAR ---
 HARITA_DOSYASI = "SUMO\map\grid_sehir.net.xml"
 TRAFIK_DOSYASI = "SUMO\map\\traffic.rou.xml"
-MODEL_DOSYASI = "trafik_yonetici_ppo_final" 
+MODEL_DOSYASI = "trafik_yonetici_4_kavsak_final" 
+
+# --- ÇOK ÖNEMLİ AYAR ---
+# Eğitimde 15 yaptıysan, burada da 15 OLMAK ZORUNDA!
+KARAR_SURESI = 15 
 
 def main():
-    print("🎬 TÜM KAVŞAKLAR İÇİN GÖSTERİ BAŞLIYOR...")
-    print("Not: 'single_agent=False' yaptık, artık herkesi yöneteceksin.")
+    print("🕵️‍♂️ DETEKTİF MODU: Modelin ne düşündüğünü izliyoruz...")
 
-    # 1. ORTAMI OLUŞTUR (MULTI-AGENT MODU)
     env = sumo_rl.SumoEnvironment(
         net_file=HARITA_DOSYASI,
         route_file=TRAFIK_DOSYASI,
         use_gui=True,              
         num_seconds=3600,          
         min_green=5,
-        delta_time=5,
-        reward_fn='diff-waiting-time',
-        single_agent=False          # Çoklu Ajan Modu
+        delta_time=KARAR_SURESI,    # <--- BURASI 15 OLMALI
+        reward_fn='pressure',
+        single_agent=False          # Tüm kavşaklar
     )
 
-    # 2. MODELİ YÜKLE
     try:
         model = PPO.load(MODEL_DOSYASI)
         print("✅ Beyin Yüklendi.")
@@ -32,46 +33,44 @@ def main():
         print(f"❌ '{MODEL_DOSYASI}' bulunamadı.")
         return
 
-    # 3. SİMÜLASYONU BAŞLAT (HATA ÇÖZÜMÜ BURADA)
-    # env.reset() bazen tek (obs), bazen çift (obs, info) döner.
-    # Bunu kontrol altına alıyoruz:
+    # Resetleme Mantığı (Hata önleyici)
     reset_return = env.reset()
-    
     if isinstance(reset_return, tuple):
-        # Eğer (obs, info) döndüyse:
         obs = reset_return[0]
     else:
-        # Eğer sadece obs döndüyse:
         obs = reset_return
 
-    # Done (Bitti) kontrolü için
     done = {'__all__': False}
     
+    step_sayaci = 0
     while not done['__all__']:
         actions = {}
         
-        # --- PARAMETRE PAYLAŞIMI ---
-        # Haritadaki her kavşak için aynı beyni kullanıyoruz
+        print(f"\n--- Adım {step_sayaci} ---")
+        
         for agent_id in obs.keys():
             agent_obs = obs[agent_id]
+            
+            # Deterministic=False yapalım ki bazen risk alabilsin (Test amaçlı)
             action, _states = model.predict(agent_obs, deterministic=True)
+            
             actions[agent_id] = action
+            
+            # KONSOLA YAZDIR: Hangi kavşak ne yapmak istiyor?
+            # Action 0 veya 1 genelde "Koru", 2 veya 3 "Değiştir" olabilir (Faz yapısına göre)
+            print(f"🚦 {agent_id} -> Karar: {action}")
         
-        # Adım at (Step)
         step_return = env.step(actions)
         
-        # Step dönüşü de versiyona göre değişebilir (4'lü veya 5'li olabilir)
         if len(step_return) == 5:
             obs, rewards, terminations, truncations, info = step_return
-            done = terminations # Yeni versiyonlarda 'terminations' kullanılır
+            done = terminations
         else:
-            obs, rewards, done, info = step_return # Eski versiyon
+            obs, rewards, done, info = step_return
+            if not isinstance(done, dict): done = {'__all__': done}
             
-            # Eğer done bir sözlük değilse (tek ajan gibi döndüyse) düzelt
-            if not isinstance(done, dict):
-                done = {'__all__': done}
+        step_sayaci += 1
 
-    print("Gösteri bitti.")
     env.close()
 
 if __name__ == "__main__":
