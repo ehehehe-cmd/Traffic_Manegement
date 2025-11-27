@@ -6,7 +6,7 @@ import sumo_rl
 # --- AYARLAR ---
 HARITA_DOSYASI = "SUMO\map\grid_sehir.net.xml"
 TRAFIK_DOSYASI = "SUMO\map\\traffic.rou.xml"
-MODEL_DOSYASI = "trafik_yonetici_4_kavsak_final" 
+MODEL_DOSYASI = "trafik_yonetici_4_kavsak_ceza01" 
 
 # --- ÇOK ÖNEMLİ AYAR ---
 # Eğitimde 15 yaptıysan, burada da 15 OLMAK ZORUNDA!
