@@ -1,0 +1,74 @@
+import gymnasium as gym
+from stable_baselines3 import PPO
+from stable_baselines3.common.vec_env import SubprocVecEnv, VecMonitor
+from stable_baselines3.common.env_util import make_vec_env
+from stable_baselines3.common.callbacks import CheckpointCallback
+import os
+import torch
+
+from adaptor import SUMOTrafikOrtami
+
+BASE_PATH = os.path.dirname(os.path.abspath(__file__))
+ANA_KAYIT_YERİ = "C:/Trafik_Yapay_Zeka"
+
+NET_DOSYASI = r"SUMO\map\grid_sehir.net.xml"  # Kendi dosya yolun
+ROUTE_DOSYASI = r"SUMO\map\traffic.rou.xml" # Kendi dosya yolun
+KAYIT_KLASORU = os.path.join(ANA_KAYIT_YERİ, "modeller")
+LOG_KLASORU = os.path.join(ANA_KAYIT_YERİ, "logs")
+model_adı= "ppo_kavsak_model"
+CPU_SAYISI = 4 # Bilgisayarının çekirdek sayısına göre ayarla (Örn: 4, 8, 12)
+
+# Klasörleri oluştur (Yoksa yaratır, varsa dokunmaz)
+os.makedirs(KAYIT_KLASORU, exist_ok=True)
+os.makedirs(LOG_KLASORU, exist_ok=True)
+
+def egitim_baslat():
+    print("------Eğitim Başlıyor------")
+
+    # GPU Kullanımı Kontrolü (Opsiyonel Bilgi)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"Eğitim Cihazı: {device}")
+
+    env_kwargs = {
+        "net_dosyasi": NET_DOSYASI, 
+        "route_dosyasi": ROUTE_DOSYASI
+    }
+
+    env = make_vec_env(
+        SUMOTrafikOrtami, 
+        n_envs=CPU_SAYISI, 
+        seed=0, 
+        vec_env_cls=SubprocVecEnv, # İşte sihirli değnek burası!
+        env_kwargs=env_kwargs
+    )
+
+    env = VecMonitor(env, LOG_KLASORU)
+
+    # Modeli oluşturma
+    model = PPO(
+        "MlpPolicy",
+        env,
+        verbose=1,
+        learning_rate= 0.0003,
+        n_steps= 1024,
+        batch_size=64,
+        gamma=0.99,
+        tensorboard_log=LOG_KLASORU
+    )
+
+    # Her 10.000 adımda bir kaydeder
+    checkpoint_callback = CheckpointCallback(
+        save_freq=10000,
+        save_path=KAYIT_KLASORU,
+        name_prefix= model_adı + "_test"
+    )
+
+    # Eğitimi başlat
+    print("----Model Eğitimi Başlıyor----")
+    model.learn(total_timesteps=200000, callback=checkpoint_callback)
+
+    # Modeli kaydet
+    model.save(model_adı + "_final")
+
+if __name__ == "__main__":
+    egitim_baslat()
