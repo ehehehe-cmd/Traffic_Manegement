@@ -5,6 +5,7 @@ from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.callbacks import CheckpointCallback
 import os
 import torch
+import intel_extension_for_pytorch as ipex
 
 from adaptor import SUMOTrafikOrtami
 
@@ -15,8 +16,8 @@ NET_DOSYASI = r"SUMO\map\grid_sehir.net.xml"  # Kendi dosya yolun
 ROUTE_DOSYASI = r"SUMO\map\traffic.rou.xml" # Kendi dosya yolun
 KAYIT_KLASORU = os.path.join(ANA_KAYIT_YERİ, "modeller")
 LOG_KLASORU = os.path.join(ANA_KAYIT_YERİ, "logs")
-model_adı= "ppo_kavsak_model"
-CPU_SAYISI = 4 # Bilgisayarının çekirdek sayısına göre ayarla (Örn: 4, 8, 12)
+model_adi= "ppo_kavsak_modelv3"
+CPU_SAYISI = 10 # Bilgisayarının çekirdek sayısına göre ayarla (Örn: 4, 8, 12)
 
 # Klasörleri oluştur (Yoksa yaratır, varsa dokunmaz)
 os.makedirs(KAYIT_KLASORU, exist_ok=True)
@@ -26,7 +27,7 @@ def egitim_baslat():
     print("------Eğitim Başlıyor------")
 
     # GPU Kullanımı Kontrolü (Opsiyonel Bilgi)
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = torch.device("xpu" if torch.xpu.is_available() else "cpu")
     print(f"Eğitim Cihazı: {device}")
 
     env_kwargs = {
@@ -53,22 +54,23 @@ def egitim_baslat():
         n_steps= 1024,
         batch_size=64,
         gamma=0.99,
-        tensorboard_log=LOG_KLASORU
+        tensorboard_log=LOG_KLASORU,
+        policy_kwargs=dict(net_arch=[512, 512])
     )
 
     # Her 10.000 adımda bir kaydeder
     checkpoint_callback = CheckpointCallback(
         save_freq=10000,
         save_path=KAYIT_KLASORU,
-        name_prefix= model_adı + "_test"
+        name_prefix= model_adi + "_test"
     )
 
     # Eğitimi başlat
     print("----Model Eğitimi Başlıyor----")
-    model.learn(total_timesteps=200000, callback=checkpoint_callback)
+    model.learn(total_timesteps=1000000, callback=checkpoint_callback)
 
     # Modeli kaydet
-    model.save(model_adı + "_final")
+    model.save(model_adi + "_final")
 
 if __name__ == "__main__":
     egitim_baslat()

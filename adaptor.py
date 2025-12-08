@@ -20,9 +20,10 @@ class SUMOTrafikOrtami(gym.Env):
         self.max_steps = 4000  # Bir bölüm kaç adım sürecek
         self.step_counter = 0
         self.kavsak_id = "kavsak_id" # SUMO'daki Junction ID buraya yazılmalı
+        self.min_yesil_suresi = 15  # Bir ışık en az 15 saniye yanmak ZORUNDA
 
         self.sumo_cmd = [
-            "sumo-gui",              # Görsel arayüz (Eğitimde hız için 'sumo' yap)
+            "sumo",              # Görsel arayüz (Eğitimde hız için 'sumo' yap)
             "-n", self.net_dosyasi,  # Sınıfa gönderdiğin .net.xml dosyası
             "-r", self.route_dosyasi,# Sınıfa gönderdiğin .rou.xml dosyası
             "--no-step-log", "true", 
@@ -33,6 +34,10 @@ class SUMOTrafikOrtami(gym.Env):
         # Haritdaki tüm kavşakları bulma
 
         self._ag_analiz_yap()
+
+        self.son_degisim_zamani = {}
+        for tls in self.tls_verileri:
+            self.son_degisim_zamani[tls['id']] = 0
 
         # Action space tanımı
         # Verilen örnek haritada kaç tane fazı vars ona göre tanımlar
@@ -76,8 +81,6 @@ class SUMOTrafikOrtami(gym.Env):
 
     def _ag_analiz_yap(self):
         print("Harita taraniyor...")
-        Net = sumolib.net.readNet(self.net_dosyasi)
-        all_tls = Net.getTrafficLights()
 
         self.tls_verileri = []
 
@@ -184,19 +187,40 @@ class SUMOTrafikOrtami(gym.Env):
         # Action parametreleri bir dizide geliyor örn: [1, 0, 0, 1]
         toplam_ceza = 0
 
+        # Şu anki simülasyon zamanı (Saniye cinsinden)
+        suanki_zaman = traci.simulation.getTime()
+
         # Her kavşak için ayrı ayrı uygulama
-
         for i, tls in enumerate(self.tls_verileri):
-            secilen_aksiyon_index = action[i] # Modelin seçtiği
+            kavsak_id = tls['id']
+            
+            # Modelin istediği yeni aksiyon
+            istenen_aksiyon_idx = action[i] 
+            hedef_faz = tls['green_phases'][istenen_aksiyon_idx]
+            
+            try:
+                # Mevcut fazı öğren
+                suanki_faz_index = traci.trafficlight.getPhase(kavsak_id)
+                
+                # --- ZAMAN KİLİDİ KONTROLÜ ---
+                gecen_sure = suanki_zaman - self.son_degisim_zamani[kavsak_id]
+                
+                # Eğer ışık zaten istenen fazdaysa sorun yok, devam et.
+                # AMA ışık değiştirilmek isteniyorsa VE 15 saniye dolmadıysa -> REDDET.
+                if hedef_faz != suanki_faz_index:
+                    if gecen_sure < self.min_yesil_suresi:
+                        # KİLİT AKTİF: Aksiyonu yapma, eski haliyle kalsın.
+                        pass 
+                    else:
+                        # SÜRE DOLMUŞ: Değişikliğe izin ver.
+                        traci.trafficlight.setPhase(kavsak_id, hedef_faz)
+                        # Sayacı sıfırla (zamanı kaydet)
+                        self.son_degisim_zamani[kavsak_id] = suanki_zaman
+                        
+            except:
+                pass
 
-            hedef_faz = tls["green_phases"][secilen_aksiyon_index]
-            suanki_faz = traci.trafficlight.getPhase(tls["id"])
 
-            if hedef_faz != suanki_faz:
-                # Doğrudan geçiş basitlik için sarı ışığı atladım 
-                traci.trafficlight.setPhase(tls["id"], hedef_faz)
-                tls["last_action_idx"] = secilen_aksiyon_index
-        
         for _ in range(self.sim_step_per_action):
             traci.simulationStep()
             self.sim_step +=1
@@ -208,6 +232,12 @@ class SUMOTrafikOrtami(gym.Env):
         
         obs = self._get_observation()
         reward = -1 * (toplam_ceza / 1000.0) # Ölçekleme
+        # Test için 
+        if self.sim_step % 100 == 0:
+            print(f"Gözlem Örneği: {obs}")
+            print(f"Ödül: {reward}")
+
+        
         terminated = self.sim_step >= self.max_steps
 
         return obs, reward, terminated, False, {}
