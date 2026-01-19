@@ -2,70 +2,86 @@ import gymnasium as gym
 from stable_baselines3 import PPO
 import os
 import time
+import traci
 
-# Senin ortam dosyan
+# Senin adaptör dosyan (adaptor.py dosyasının yanında olmalı bu kod)
 from adaptor import SUMOTrafikOrtami 
 
 # --- AYARLAR ---
-# Eğitimde kullandığın yolların aynısı
-BASE_PATH = os.path.dirname(os.path.abspath(__file__))
-NET_DOSYASI = r"SUMO\map\grid_sehir.net.xml"  # Kendi dosya yolun
-ROUTE_DOSYASI = r"SUMO\map\traffic.rou.xml" # Kendi dosya yolun
+# Dosya yollarını kendi bilgisayarına göre kontrol et
+NET_DOSYASI = r"SUMO\map_solo\solo.net.xml"
+ROUTE_DOSYASI = r"SUMO\map_solo\traffic.rou.xml"
 
-# Modelin olduğu klasör (Eğitimde değiştirdiğimiz C:/ yolu)
-MODEL_YOLU = "ppo_kavsak_modelv2_final.zip" 
-# VEYA ara kayıtları denemek istersen:
-# MODEL_YOLU = "C:/Trafik_Yapay_Zeka/modeller/ppo_multi_model_50000_steps.zip"
+# En son kaydedilen modelin tam adı (Uzantısı .zip olsun veya olmasın fark etmez)
+MODEL_YOLU = "modeller\solo\solov1\ppo_kavsak_model_solov1_final" 
 
 def testi_baslat():
-    print("--- GÖRSEL TEST BAŞLIYOR ---")
+    print("--- 🚦 GÖRSEL TEST BAŞLIYOR 🚦 ---")
     
-    # 1. Ortamı Oluştur
-    # Not: egitim_deneme.py içinde "sumo-gui" yazdığından emin ol!
-    env = SUMOTrafikOrtami(NET_DOSYASI, ROUTE_DOSYASI)
-
-    # 2. Eğitilmiş Modeli Yükle
-    # İster "final_model"i, ister en iyi checkpoint'i yükleyebilirsin.
-    # Örn: model_yolu = os.path.join(KAYIT_KLASORU, "ppo_multi_final_model")
-    
-    model_adi = "ppo_multi_final_model" # Uzantısız yaz (.zip gerekmez)
-    model_yolu = os.path.join(MODEL_YOLU)
-    
-    print(f"Model yükleniyor: {model_yolu}")
+    # 1. ORTAMI HAZIRLA
+    # 'use_gui=True' parametresini ekledim. Eğer adaptor.py'ni güncellemediysen
+    # hata verebilir, aşağıda try-except ile hallediyoruz.
     
     try:
-        model = PPO.load(model_yolu)
-    except:
-        print("HATA: Model dosyası bulunamadı! İsmi veya klasörü kontrol et.")
+        env = SUMOTrafikOrtami(NET_DOSYASI, ROUTE_DOSYASI, use_gui=True)
+    except TypeError:
+        # Eğer adaptor.py eski halindeyse (parametre almıyorsa):
+        print("Uyarı: Adaptör eski sürüm, manuel GUI yaması yapılıyor...")
+        env = SUMOTrafikOrtami(NET_DOSYASI, ROUTE_DOSYASI)
+        # Manuel olarak komutu sumo-gui'ye çeviriyoruz
+        if env.sumo_cmd[0] == "sumo":
+            env.sumo_cmd[0] = "sumo-gui"
+            # Otomatik başlatma ve çıkış komutlarını ekleyelim
+            env.sumo_cmd.extend(["--start", "true", "--quit-on-end", "true"])
+
+    # 2. MODELİ YÜKLE
+    print(f"Model yükleniyor: {MODEL_YOLU}...")
+    try:
+        model = PPO.load(MODEL_YOLU)
+        print("✅ Model başarıyla yüklendi!")
+    except FileNotFoundError:
+        print(f"❌ HATA: '{MODEL_YOLU}.zip' dosyası bulunamadı!")
         return
 
-    # 3. Simülasyon Döngüsü
+    # 3. SİMÜLASYON DÖNGÜSÜ
     obs, info = env.reset()
-    bitti = False
+    done = False
     toplam_odul = 0
+    adim_sayisi = 0
     
-    print("\nSimülasyon penceresi açıldı!")
-    print("İzlemek için SUMO penceresindeki 'Play' (Yeşil Üçgen) tuşuna bas.")
+    print("\n📺 Simülasyon penceresi açılıyor...")
+    print("Eğer otomatik başlamazsa sol üstteki 'Play' (Yeşil Üçgen) tuşuna bas.")
     
-    while not bitti:
-        # Modelden tahmin al (Deterministic=True, rastgelelik yapma en iyi bildiğini yap demek)
-        action, _states = model.predict(obs, deterministic=True)
-        
-        # Ortamda uygula
-        obs, reward, terminated, truncated, info = env.step(action)
-        
-        toplam_odul += reward
-        bitti = terminated or truncated
-        
-        # Biraz yavaşlat ki gözle takip edebilelim (Opsiyonel)
-        # time.sleep(0.05) 
+    try:
+        while not done:
+            # deterministic=True : Ajan macera aramaz, öğrendiği EN İYİ hamleyi yapar.
+            action, _states = model.predict (obs, deterministic=True)
+            
+            # Aksiyonu uygula
+            obs, reward, terminated, truncated, info = env.step(action)
+            
+            toplam_odul += reward
+            adim_sayisi += 1
+            done = terminated or truncated
+            
+            # Konsola anlık bilgi bas (Opsiyonel)
+            if adim_sayisi % 10 == 0:
+                print(f"Adım: {adim_sayisi} | Anlık Ödül: {reward:.2f} | Aksiyon: {action}")
 
-    print(f"--- TEST BİTTİ ---")
-    print(f"Toplam Puan (Reward): {toplam_odul}")
-    
-    # Hemen kapanmasın diye bekle
-    input("Kapatmak için Enter'a bas...")
-    env.close()
+            # Gözle takip edebilmek için simülasyonu biraz yavaşlatıyoruz
+            # Bilgisayarın çok hızlıysa bu sayıyı 0.1 yapabilirsin
+            time.sleep(0.05) 
+
+    except KeyboardInterrupt:
+        print("\nTest kullanıcı tarafından durduruldu.")
+    except Exception as e:
+        print(f"\nBeklenmedik bir hata oluştu: {e}")
+    finally:
+        print(f"\n--- TEST SONUCU ---")
+        print(f"Toplam Adım: {adim_sayisi}")
+        print(f"Toplam Puan: {toplam_odul:.2f}")
+        print("Simülasyon kapatılıyor...")
+        env.close()
 
 if __name__ == "__main__":
     testi_baslat()

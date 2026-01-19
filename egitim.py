@@ -5,18 +5,18 @@ from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.callbacks import CheckpointCallback
 import os
 import torch
-import intel_extension_for_pytorch as ipex
+#import intel_extension_for_pytorch as ipex
 
 from adaptor import SUMOTrafikOrtami
 
 BASE_PATH = os.path.dirname(os.path.abspath(__file__))
 ANA_KAYIT_YERİ = "C:/Trafik_Yapay_Zeka"
 
-NET_DOSYASI = r"SUMO\map\grid_sehir.net.xml"  # Kendi dosya yolun
-ROUTE_DOSYASI = r"SUMO\map\traffic.rou.xml" # Kendi dosya yolun
+NET_DOSYASI = r"SUMO\map_solo\solo.net.xml"  # Kendi dosya yolun
+ROUTE_DOSYASI = r"SUMO\map_solo\traffic.rou.xml" # Kendi dosya yolun
 KAYIT_KLASORU = os.path.join(ANA_KAYIT_YERİ, "modeller")
 LOG_KLASORU = os.path.join(ANA_KAYIT_YERİ, "logs")
-model_adi= "ppo_kavsak_modelv3"
+model_adi= "ppo_kavsak_model_solov1"
 CPU_SAYISI = 10 # Bilgisayarının çekirdek sayısına göre ayarla (Örn: 4, 8, 12)
 
 # Klasörleri oluştur (Yoksa yaratır, varsa dokunmaz)
