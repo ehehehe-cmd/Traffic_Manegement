@@ -9,7 +9,7 @@ import os
 import sys
 
 class SUMOTrafikOrtami(gym.Env):
-    def __init__(self, net_dosyasi, route_dosyasi):
+    def __init__(self, net_dosyasi, route_dosyasi, use_gui=False):
         super().__init__()
 
         # Ayarlar
@@ -22,8 +22,16 @@ class SUMOTrafikOrtami(gym.Env):
         self.kavsak_id = "kavsak_id" # SUMO'daki Junction ID buraya yazılmalı
         self.min_yesil_suresi = 15  # Bir ışık en az 15 saniye yanmak ZORUNDA
 
+        # 2. GUI SEÇİMİ (Bilgisayarındaki tam yolu kullanıyoruz ki kesin açılsın)
+        if use_gui:
+            # Bilgisayarındaki sumo-gui.exe'nin tam yolunu buraya yazıyoruz
+            # Eğer klasör farklıysa lütfen kendi bilgisayarına göre düzelt
+            sumo_binary = "sumo-gui"
+        else:
+            sumo_binary = "sumo"
+
         self.sumo_cmd = [
-            "sumo",              # Görsel arayüz (Eğitimde hız için 'sumo' yap)
+            sumo_binary,              # Görsel arayüz
             "-n", self.net_dosyasi,  # Sınıfa gönderdiğin .net.xml dosyası
             "-r", self.route_dosyasi,# Sınıfa gönderdiğin .rou.xml dosyası
             "--no-step-log", "true", 
@@ -49,9 +57,11 @@ class SUMOTrafikOrtami(gym.Env):
         self.action_space = spaces.MultiDiscrete(aksiyon_boyutlari)
 
         try:
+            traci_port = sumolib.miscutils.getFreeSocketPort()
+
             # GUI olmadan ('sumo') hızlıca başlat
             sumo_cmd = ["sumo", "-n", self.net_dosyasi, "-r", self.route_dosyasi, "--no-step-log", "true"]
-            traci.start(sumo_cmd)
+            traci.start(sumo_cmd, port= traci_port)
             
             # Traci'ye şeritleri sor ve kaydet
             for tls in self.tls_verileri:
@@ -145,7 +155,7 @@ class SUMOTrafikOrtami(gym.Env):
             pass
         
         # Simülasyonu başa sar
-        sumo_cmd = ["sumo", "-n", self.net_dosyasi, "-r", self.route_dosyasi, "--no-step-log", "true", "--waiting-time-memory", "1000"]
+        sumo_cmd = ["sumo-gui", "-n", self.net_dosyasi, "-r", self.route_dosyasi, "--no-step-log", "true", "--waiting-time-memory", "1000"]
         traci.start(sumo_cmd)
 
         self.sim_step = 0
@@ -182,62 +192,85 @@ class SUMOTrafikOrtami(gym.Env):
         return -1* sum(self._get_observation())
 
     def step(self, action):
-        # Eylemi uygulama
-        # Modelden gelen veriye göre emir ver   
-        # Action parametreleri bir dizide geliyor örn: [1, 0, 0, 1]
         toplam_ceza = 0
-
-        # Şu anki simülasyon zamanı (Saniye cinsinden)
-        suanki_zaman = traci.simulation.getTime()
-
-        # Her kavşak için ayrı ayrı uygulama
+        
+        # 1. HER KAVŞAK İÇİN AKSİYONU UYGULA
         for i, tls in enumerate(self.tls_verileri):
             kavsak_id = tls['id']
             
-            # Modelin istediği yeni aksiyon
+            # Ajanın seçtiği hedef yeşil faz (Örn: 0 veya 2)
             istenen_aksiyon_idx = action[i] 
             hedef_faz = tls['green_phases'][istenen_aksiyon_idx]
             
-            try:
-                # Mevcut fazı öğren
-                suanki_faz_index = traci.trafficlight.getPhase(kavsak_id)
+            # Mevcut fazı öğren
+            suanki_faz_index = traci.trafficlight.getPhase(kavsak_id)
+            
+            # --- KRİTİK DEĞİŞİKLİK: ZAMAN KİLİDİ YOK, SARI IŞIK VAR ---
+            
+            # Eğer ajan farklı bir faz seçtiyse (Değişim istiyorsa)
+            if suanki_faz_index != hedef_faz:
+                # A. Önce Sarı Işığı Yak
+                # SUMO'da genelde mevcut yeşilin bir faz sonrası sarıdır.
+                # 1. Toplam faz sayısını öğren (Dinamik olması için)
+                # Bu kavşak için tüm mantığı çeker
+                logic = traci.trafficlight.getAllProgramLogics(kavsak_id)[0]
+                toplam_faz_sayisi = len(logic.phases)
+
+                # 2. Modulo (%) kullanarak bir sonraki fazı hesapla
+                # Eğer faz 3 ise ve toplam 4 ise: (3+1) % 4 = 0 olur (Başa döner)
+                sari_faz = (suanki_faz_index + 1) % toplam_faz_sayisi
+
+                traci.trafficlight.setPhase(kavsak_id, sari_faz)
+                                
+                # B. Sarı ışık süresi kadar simülasyonu ilerlet (Örn: 3 saniye)
+                # Not: Bu döngüde de ceza hesaplamayı unutma!
+                for _ in range(3): 
+                    traci.simulationStep()
+                    self.sim_step += 1
+                    toplam_ceza += self._hesapla_anlik_ceza() # Yardımcı fonksiyon
                 
-                # --- ZAMAN KİLİDİ KONTROLÜ ---
-                gecen_sure = suanki_zaman - self.son_degisim_zamani[kavsak_id]
+                # C. Şimdi Hedef Yeşile Geç
+                traci.trafficlight.setPhase(kavsak_id, hedef_faz)
                 
-                # Eğer ışık zaten istenen fazdaysa sorun yok, devam et.
-                # AMA ışık değiştirilmek isteniyorsa VE 15 saniye dolmadıysa -> REDDET.
-                if hedef_faz != suanki_faz_index:
-                    if gecen_sure < self.min_yesil_suresi:
-                        # KİLİT AKTİF: Aksiyonu yapma, eski haliyle kalsın.
-                        pass 
-                    else:
-                        # SÜRE DOLMUŞ: Değişikliğe izin ver.
-                        traci.trafficlight.setPhase(kavsak_id, hedef_faz)
-                        # Sayacı sıfırla (zamanı kaydet)
-                        self.son_degisim_zamani[kavsak_id] = suanki_zaman
-                        
-            except:
+                # Değişim olduğu için sayacı sıfırlayabilirsin (opsiyonel, istatistik için)
+                self.son_degisim_zamani[kavsak_id] = traci.simulation.getTime()
+                
+            else:
+                # Ajan "Aynı fazda kal" dediyse hiçbir şey yapma, yeşil yanmaya devam etsin.
                 pass
 
-
-        for _ in range(self.sim_step_per_action):
+        # 2. ANA SİMÜLASYON ADIMI (ACTION DURATION)
+        # Ajan kararını verdi, şimdi sonucunu görmek için zamanı akıtıyoruz.
+        # Örn: 5 saniye boyunca bu kararın sonuçlarını izle.
+        sim_step_per_action = 5 
+        
+        for _ in range(sim_step_per_action):
             traci.simulationStep()
-            self.sim_step +=1
+            self.sim_step += 1
+            toplam_ceza += self._hesapla_anlik_ceza()
 
-            # Ödül ceza hesabı
-            for tls in self.tls_verileri:
-                for lane in tls["lanes"]:
-                    toplam_ceza += traci.lane.getWaitingTime(lane)
-        
+        # 3. GÖZLEM VE ÖDÜL
         obs = self._get_observation()
-        reward = -1 * (toplam_ceza / 1000.0) # Ölçekleme
-        # Test için 
-        if self.sim_step % 100 == 0:
-            print(f"Gözlem Örneği: {obs}")
-            print(f"Ödül: {reward}")
-
         
+        # ÖDÜL FONKSİYONU REVİZYONU
+        # WaitingTime yerine HaltingNumber kullanmak eğitimi hızlandırır.
+        # Çünkü waitingTime kümülatiftir (geçmişi hatırlar), HaltingNumber anlıktır.
+        reward = -1 * (toplam_ceza / 100.0) 
+
+        # Loglama
+        if self.sim_step % 100 == 0:
+            print(f"Adım: {self.sim_step}, Ödül: {reward:.2f}, Eylem: {action}")
+
         terminated = self.sim_step >= self.max_steps
 
         return obs, reward, terminated, False, {}
+
+    # --- YARDIMCI FONKSİYON ---
+    # Kod tekrarını önlemek için bunu sınıfına ekle
+    def _hesapla_anlik_ceza(self):
+        anlik_ceza = 0
+        for tls in self.tls_verileri:
+            for lane in tls["lanes"]:
+                # Kuyruk uzunluğunu (duran araç sayısı) ceza olarak al
+                anlik_ceza += traci.lane.getLastStepHaltingNumber(lane)
+        return anlik_ceza
