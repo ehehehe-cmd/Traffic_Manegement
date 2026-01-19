@@ -39,7 +39,7 @@ def egitim_baslat():
         SUMOTrafikOrtami, 
         n_envs=CPU_SAYISI, 
         seed=0, 
-        vec_env_cls=SubprocVecEnv, # İşte sihirli değnek burası!
+        vec_env_cls=SubprocVecEnv, 
         env_kwargs=env_kwargs
     )
 

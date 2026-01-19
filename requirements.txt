@@ -1,0 +1,6 @@
+gymnasium==1.2.2
+numpy==2.4.1
+stable_baselines3==2.7.0
+sumolib==1.25.0
+torch==2.9.1
+traci==1.25.0
