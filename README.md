@@ -102,8 +102,38 @@ Projeyi yerel makinenizde çalıştırmak için aşağıdaki adımları izleyebi
     python train.py
     ```
 
-## 📊 Örnek Görseller
+## 📂 Proje Dosya Yapısı
 
+Bu proje, kodun modülerliğini sağlamak ve farklı deneyleri yönetmek amacıyla aşağıdaki dizin yapısına sahiptir. Bu dizin yapısı projenin genelini temsil etmektedir basit değişikliler olablir:
+
+```text
+Traffic_Management/
+├── adaptor.py              # SUMO ile model arasındaki bağlantı adaptörü
+├── egitim.py               # Eğitimi başlatan ana dosya
+├── test_model.py           # Eğitilmiş modeli test etme kodu
+├── requirements.txt        # Gerekli kütüphaneler
+├── logs/                   # Eğitim logları (Tensorboard)
+│   ├── PPO_1/
+│   └── PPO_2/
+├── modeller/               # Kaydedilmiş modeller
+│   ├── 4 ışık/             # 4 ışıklı kavşak denemeleri
+│   │   ├── modelv1/
+│   │   └── modelv2/
+│   └── solo/               # Tekil kavşak denemeleri
+│       └── solov1/
+│           ├── egitim/     # Ara kayıtlar (Checkpoints 100k, 200k...)
+│           └── ppo_kavsak_model_solov1_final.zip
+└── SUMO/                   # Simülasyon harita ve rota dosyaları
+    ├── grid_cmd_code.txt
+    ├── map/                # Grid şehir haritası (4 Işıklı)
+    │   ├── grid_proje.sumocfg
+    │   ├── grid_sehir.net.xml
+    │   └── traffic.rou.xml
+    └── map_solo/           # Tekil kavşak haritası
+        ├── simulasyon.sumocfg
+        └── solo.net.xml
+```
+## 📊 Örnek Görseller
 # Tek Kavşak Modeli(solov1) Demo
 
 ![Kayt2026-01-19112834-ezgif com-video-to-gif-converter](https://github.com/user-attachments/assets/a8a31ba6-6900-48f8-958b-ccf267d0bcb0)
