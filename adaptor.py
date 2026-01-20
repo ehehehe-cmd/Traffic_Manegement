@@ -24,20 +24,24 @@ class SUMOTrafikOrtami(gym.Env):
 
         # 2. GUI SEÇİMİ (Bilgisayarındaki tam yolu kullanıyoruz ki kesin açılsın)
         if use_gui:
-            # Bilgisayarındaki sumo-gui.exe'nin tam yolunu buraya yazıyoruz
-            # Eğer klasör farklıysa lütfen kendi bilgisayarına göre düzelt
-            sumo_binary = "sumo-gui"
+            #Eğitim ve test kımında değiştirmek için
+            self.sumo_binary = "sumo-gui"
+            extra_params = ["--start", "false", "--quit-on-end", "true"]
         else:
-            sumo_binary = "sumo"
+            self.sumo_binary = "sumo"
+            extra_params = []
 
         self.sumo_cmd = [
-            sumo_binary,              # Görsel arayüz
+            self.sumo_binary,              # Görsel arayüz
             "-n", self.net_dosyasi,  # Sınıfa gönderdiğin .net.xml dosyası
             "-r", self.route_dosyasi,# Sınıfa gönderdiğin .rou.xml dosyası
             "--no-step-log", "true", 
             "--waiting-time-memory", "1000",
             "--time-to-teleport", "-1" # Sıkışan araçlar ışınlanmasın (gerçekçi olsun)
         ]
+
+        # GUI ise start komutlarını ekle
+        self.sumo_cmd.extend(extra_params)
 
         # Haritdaki tüm kavşakları bulma
 
@@ -155,8 +159,7 @@ class SUMOTrafikOrtami(gym.Env):
             pass
         
         # Simülasyonu başa sar
-        sumo_cmd = ["sumo-gui", "-n", self.net_dosyasi, "-r", self.route_dosyasi, "--no-step-log", "true", "--waiting-time-memory", "1000"]
-        traci.start(sumo_cmd)
+        traci.start(self.sumo_cmd)
 
         self.sim_step = 0
 
@@ -224,7 +227,7 @@ class SUMOTrafikOrtami(gym.Env):
                                 
                 # B. Sarı ışık süresi kadar simülasyonu ilerlet (Örn: 3 saniye)
                 # Not: Bu döngüde de ceza hesaplamayı unutma!
-                for _ in range(3): 
+                for _ in range(5): 
                     traci.simulationStep()
                     self.sim_step += 1
                     toplam_ceza += self._hesapla_anlik_ceza() # Yardımcı fonksiyon
@@ -242,7 +245,7 @@ class SUMOTrafikOrtami(gym.Env):
         # 2. ANA SİMÜLASYON ADIMI (ACTION DURATION)
         # Ajan kararını verdi, şimdi sonucunu görmek için zamanı akıtıyoruz.
         # Örn: 5 saniye boyunca bu kararın sonuçlarını izle.
-        sim_step_per_action = 5 
+        sim_step_per_action = 5
         
         for _ in range(sim_step_per_action):
             traci.simulationStep()

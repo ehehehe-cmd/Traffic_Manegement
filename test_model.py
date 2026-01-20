@@ -13,7 +13,7 @@ NET_DOSYASI = r"SUMO\map_solo\solo.net.xml"
 ROUTE_DOSYASI = r"SUMO\map_solo\traffic.rou.xml"
 
 # En son kaydedilen modelin tam adı (Uzantısı .zip olsun veya olmasın fark etmez)
-MODEL_YOLU = "modeller\solo\solov1\ppo_kavsak_model_solov1_final" 
+MODEL_YOLU = "modeller\solo\solov3\ppo_kavsak_model_solov3_final" 
 
 def testi_baslat():
     print("--- 🚦 GÖRSEL TEST BAŞLIYOR 🚦 ---")
