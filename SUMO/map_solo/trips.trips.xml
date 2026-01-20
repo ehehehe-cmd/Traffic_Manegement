@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!-- generated on 2026-01-19 09:11:37.894418 by Eclipse SUMO randomTrips.py v1_25_0+0000-ac6c5a6752d
+<!-- generated on 2026-01-20 15:44:32.477264 by Eclipse SUMO randomTrips.py v1_25_0+0000-ac6c5a6752d
 <configuration>
     <net-file value="solo.net.xml"/>
     <route-file value="traffic.rou.xml"/>
-    <fringe-factor value="10"/>
+    <fringe-factor value="5"/>
     <period value="2.0"/>
 </configuration>
 -->
