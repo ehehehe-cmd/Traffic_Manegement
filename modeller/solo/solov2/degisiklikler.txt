@@ -1,0 +1,47 @@
+solov1 --> solov2
+Sarı ışık süresi 3'ten 5'e çıkarıldı
+Kararın sonuçlarını izleme 5'ten 7'ye çıkarıldı
+map_solo'da u dönüşleri kaldırıldı (trafiği kilitliyordu)
+
+---------------TEST1---------------
+
+---------------solov1---------------
+--- TEST SONUCU ---
+Toplam Adım: 375
+Toplam Puan: -165.84
+---------------solov2---------------
+--- TEST SONUCU ---
+Toplam Adım: 333
+Toplam Puan: -156.30
+
+-p 2.0 frige 10.0
+
+---------------TEST2---------------
+
+---------------solov1---------------
+--- TEST SONUCU ---
+Toplam Adım: 397
+Toplam Puan: -1166.91
+
+---------------solov2---------------
+--- TEST SONUCU ---
+Toplam Adım: 385
+Toplam Puan: -1198.17
+
+-p 1.5 frige 5.0
+
+---------------TEST3---------------
+
+---------------solov1---------------
+--- TEST SONUCU ---
+Toplam Adım: 354
+Toplam Puan: -127.81
+
+---------------solov2---------------
+--- TEST SONUCU ---
+Toplam Adım: 339
+Toplam Puan: -122.71
+
+-p 2 frige 7.0
+
+çalıştırılan süreler neredeyse aynıdır adım sayısı farkı modelin karar verme süresiyle alakalı.
