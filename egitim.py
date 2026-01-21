@@ -1,11 +1,12 @@
 import gymnasium as gym
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import SubprocVecEnv, VecMonitor
+from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.callbacks import CheckpointCallback
 import os
 import torch
-import intel_extension_for_pytorch as ipex
+#import intel_extension_for_pytorch as ipex
 
 from adaptor import SUMOTrafikOrtami
 
@@ -16,7 +17,7 @@ NET_DOSYASI = r"SUMO\map_solo\solo.net.xml"  # Kendi dosya yolun
 ROUTE_DOSYASI = r"SUMO\map_solo\traffic.rou.xml" # Kendi dosya yolun
 KAYIT_KLASORU = os.path.join(ANA_KAYIT_YERİ, "modeller")
 LOG_KLASORU = os.path.join(ANA_KAYIT_YERİ, "logs")
-model_adi= "ppo_kavsak_model_solov3"
+model_adi= "ppo_kavsak_model_solov4"
 CPU_SAYISI = 10 # Bilgisayarının çekirdek sayısına göre ayarla (Örn: 4, 8, 12)
 
 # Klasörleri oluştur (Yoksa yaratır, varsa dokunmaz)
@@ -32,7 +33,6 @@ def egitim_baslat():
 
     env_kwargs = {
         "net_dosyasi": NET_DOSYASI, 
-        "route_dosyasi": ROUTE_DOSYASI,
         "use_gui":False
     }
 
@@ -56,6 +56,7 @@ def egitim_baslat():
         batch_size=64,
         gamma=0.99,
         tensorboard_log=LOG_KLASORU,
+        ent_coef=0.01,
         policy_kwargs=dict(net_arch=[512, 512])
     )
 

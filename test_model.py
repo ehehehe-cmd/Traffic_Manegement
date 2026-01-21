@@ -10,10 +10,9 @@ from adaptor import SUMOTrafikOrtami
 # --- AYARLAR ---
 # Dosya yollarını kendi bilgisayarına göre kontrol et
 NET_DOSYASI = r"SUMO\map_solo\solo.net.xml"
-ROUTE_DOSYASI = r"SUMO\map_solo\traffic.rou.xml"
 
 # En son kaydedilen modelin tam adı (Uzantısı .zip olsun veya olmasın fark etmez)
-MODEL_YOLU = "modeller\solo\solov3\ppo_kavsak_model_solov3_final" 
+MODEL_YOLU = "modeller\solo\solov4\ppo_kavsak_model_solov4_final" 
 
 def testi_baslat():
     print("--- 🚦 GÖRSEL TEST BAŞLIYOR 🚦 ---")
@@ -23,11 +22,11 @@ def testi_baslat():
     # hata verebilir, aşağıda try-except ile hallediyoruz.
     
     try:
-        env = SUMOTrafikOrtami(NET_DOSYASI, ROUTE_DOSYASI, use_gui=True)
+        env = SUMOTrafikOrtami(NET_DOSYASI, use_gui=True)
     except TypeError:
         # Eğer adaptor.py eski halindeyse (parametre almıyorsa):
         print("Uyarı: Adaptör eski sürüm, manuel GUI yaması yapılıyor...")
-        env = SUMOTrafikOrtami(NET_DOSYASI, ROUTE_DOSYASI)
+        env = SUMOTrafikOrtami(NET_DOSYASI, use_gui=True)
         # Manuel olarak komutu sumo-gui'ye çeviriyoruz
         if env.sumo_cmd[0] == "sumo":
             env.sumo_cmd[0] = "sumo-gui"
