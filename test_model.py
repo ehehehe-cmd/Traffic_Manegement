@@ -9,10 +9,10 @@ from adaptor import SUMOTrafikOrtami
 
 # --- AYARLAR ---
 # Dosya yollarını kendi bilgisayarına göre kontrol et
-NET_DOSYASI = r"SUMO\map_solo\solo.net.xml"
+NET_DOSYASI = os.path.join(os.path.dirname(os.path.abspath(__file__)), "SUMO/map_solo/solo.net.xml")
 
 # En son kaydedilen modelin tam adı (Uzantısı .zip olsun veya olmasın fark etmez)
-MODEL_YOLU = "modeller\solo\solov4\ppo_kavsak_model_solov4_final" 
+MODEL_YOLU = os.path.join(os.path.dirname(os.path.abspath(__file__)), "modeller/solo/solov6/ppo_kavsak_model_solov6_final") 
 
 def testi_baslat():
     print("--- 🚦 GÖRSEL TEST BAŞLIYOR 🚦 ---")

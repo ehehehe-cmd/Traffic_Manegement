@@ -11,13 +11,13 @@ import torch
 from adaptor import SUMOTrafikOrtami
 
 BASE_PATH = os.path.dirname(os.path.abspath(__file__))
-ANA_KAYIT_YERİ = "C:/Trafik_Yapay_Zeka"
+ANA_KAYIT_YERİ = os.path.join(BASE_PATH, "logs")
 
-NET_DOSYASI = r"SUMO\map_solo\solo.net.xml"  # Kendi dosya yolun
-ROUTE_DOSYASI = r"SUMO\map_solo\traffic.rou.xml" # Kendi dosya yolun
+NET_DOSYASI = os.path.join(BASE_PATH, "SUMO/map_solo/solo.net.xml")  # Kendi dosya yolun
+ROUTE_DOSYASI = os.path.join(BASE_PATH, "SUMO/map_solo/traffic.rou.xml") # Kendi dosya yolun
 KAYIT_KLASORU = os.path.join(ANA_KAYIT_YERİ, "modeller")
 LOG_KLASORU = os.path.join(ANA_KAYIT_YERİ, "logs")
-model_adi= "ppo_kavsak_model_solov4"
+model_adi= "ppo_kavsak_model_solov6"
 CPU_SAYISI = 10 # Bilgisayarının çekirdek sayısına göre ayarla (Örn: 4, 8, 12)
 
 # Klasörleri oluştur (Yoksa yaratır, varsa dokunmaz)

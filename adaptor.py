@@ -6,6 +6,7 @@ import sumolib
 from sumolib.net import Net
 import xml.etree.ElementTree as ET
 import random
+import time
 import os
 import sys
 
@@ -29,16 +30,16 @@ class SUMOTrafikOrtami(gym.Env):
             self.extra_params = ["--start", "false", "--quit-on-end", "true"]
             # Rota dosyalarının listesi
             self.route_files = [
-                r"SUMO\map_solo\test.rou.xml"
+                "SUMO/map_solo/test.rou.xml"
             ]
         else:
             self.sumo_binary = "sumo"
             self.extra_params = []
             # Rota dosyalarının listesi
             self.route_files = [
-                "SUMO\map_solo\low.rou.xml",
-                "SUMO\map_solo\medium.rou.xml",
-                "SUMO\map_solo\high.rou.xml"
+                "SUMO/map_solo/low.rou.xml",
+                "SUMO/map_solo/medium.rou.xml",
+                "SUMO/map_solo/high.rou.xml"
             ]
 
         # Haritdaki tüm kavşakları bulma
@@ -65,6 +66,7 @@ class SUMOTrafikOrtami(gym.Env):
 
             # GUI olmadan ('sumo') hızlıca başlat
             sumo_cmd = ["sumo", "-n", self.net_dosyasi, "-r", gecici_route, "--no-step-log", "true"]
+            time.sleep(random.uniform(0.1, 2.0))
             traci.start(sumo_cmd, port= traci_port)
             
             # Traci'ye şeritleri sor ve kaydet
@@ -84,9 +86,9 @@ class SUMOTrafikOrtami(gym.Env):
         # Tüm kavşakşarın şerit sayısı toplamı
         toplam_serit_sayisi = sum([len(tls["lanes"]) for tls in self.tls_verileri])
         self.observation_space = spaces.Box(
-            low=0,
-            high=1,
-            shape=(toplam_serit_sayisi,),
+            low=0.0,
+            high=1.0,
+            shape=(toplam_serit_sayisi * 2,),
             dtype=np.float32
         )
 
@@ -203,6 +205,9 @@ class SUMOTrafikOrtami(gym.Env):
                 try:
                     kuyruk = traci.lane.getLastStepHaltingNumber(lane)
                     tum_gozlem.append(min(1.0, kuyruk / self.maks_kuyruk))
+
+                    doluluk = traci.lane.getLastStepOccupancy(lane)
+                    tum_gozlem.append(doluluk)
                 except:
                     tum_gozlem.append(0.0)
         return np.array(tum_gozlem, dtype= np.float32)
