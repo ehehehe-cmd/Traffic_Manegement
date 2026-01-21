@@ -5,43 +5,41 @@ import traci
 import sumolib
 from sumolib.net import Net
 import xml.etree.ElementTree as ET
+import random
 import os
 import sys
 
 class SUMOTrafikOrtami(gym.Env):
-    def __init__(self, net_dosyasi, route_dosyasi, use_gui=False):
+    def __init__(self, net_dosyasi, use_gui=False):
         super().__init__()
 
         # Ayarlar
         self.net_dosyasi = net_dosyasi # .net uzaltılı dosyanın yolu
-        self.route_dosyasi = route_dosyasi # .rou uzantılı dosyanın yolu
         self.maks_kuyruk = 50
         self.sim_step_per_action = 5  # Her aksiyonda ilerlenecek adım
-        self.max_steps = 4000  # Bir bölüm kaç adım sürecek
+        self.max_steps = 3600  # Bir bölüm kaç adım sürecek
         self.step_counter = 0
         self.kavsak_id = "kavsak_id" # SUMO'daki Junction ID buraya yazılmalı
-        self.min_yesil_suresi = 15  # Bir ışık en az 15 saniye yanmak ZORUNDA
+        #self.min_yesil_suresi = 15  # Bir ışık en az 15 saniye yanmak ZORUNDA
 
         # 2. GUI SEÇİMİ (Bilgisayarındaki tam yolu kullanıyoruz ki kesin açılsın)
         if use_gui:
             #Eğitim ve test kımında değiştirmek için
             self.sumo_binary = "sumo-gui"
-            extra_params = ["--start", "false", "--quit-on-end", "true"]
+            self.extra_params = ["--start", "false", "--quit-on-end", "true"]
+            # Rota dosyalarının listesi
+            self.route_files = [
+                r"SUMO\map_solo\test.rou.xml"
+            ]
         else:
             self.sumo_binary = "sumo"
-            extra_params = []
-
-        self.sumo_cmd = [
-            self.sumo_binary,              # Görsel arayüz
-            "-n", self.net_dosyasi,  # Sınıfa gönderdiğin .net.xml dosyası
-            "-r", self.route_dosyasi,# Sınıfa gönderdiğin .rou.xml dosyası
-            "--no-step-log", "true", 
-            "--waiting-time-memory", "1000",
-            "--time-to-teleport", "-1" # Sıkışan araçlar ışınlanmasın (gerçekçi olsun)
-        ]
-
-        # GUI ise start komutlarını ekle
-        self.sumo_cmd.extend(extra_params)
+            self.extra_params = []
+            # Rota dosyalarının listesi
+            self.route_files = [
+                "SUMO\map_solo\low.rou.xml",
+                "SUMO\map_solo\medium.rou.xml",
+                "SUMO\map_solo\high.rou.xml"
+            ]
 
         # Haritdaki tüm kavşakları bulma
 
@@ -63,8 +61,10 @@ class SUMOTrafikOrtami(gym.Env):
         try:
             traci_port = sumolib.miscutils.getFreeSocketPort()
 
+            gecici_route = self.route_files[0]
+
             # GUI olmadan ('sumo') hızlıca başlat
-            sumo_cmd = ["sumo", "-n", self.net_dosyasi, "-r", self.route_dosyasi, "--no-step-log", "true"]
+            sumo_cmd = ["sumo", "-n", self.net_dosyasi, "-r", gecici_route, "--no-step-log", "true"]
             traci.start(sumo_cmd, port= traci_port)
             
             # Traci'ye şeritleri sor ve kaydet
@@ -152,12 +152,29 @@ class SUMOTrafikOrtami(gym.Env):
         
 
     def reset(self, seed=None):
+
+        # 1. Rastgele bir senaryo seç
+        selected_route = random.choice(self.route_files)
+        print(f"--- Yeni Eğitim Başlıyor: Seçilen Senaryo {selected_route} ---")
+
         # Eğer sumo açıksa kapatıcak
         try:
             traci.close()
         except:
             pass
-        
+
+        self.sumo_cmd = [
+            self.sumo_binary,              # Görsel arayüz
+            "-n", self.net_dosyasi,  # Sınıfa gönderdiğin .net.xml dosyası
+            "-r", selected_route,# Sınıfa gönderdiğin .rou.xml dosyası
+            "--no-step-log", "true", 
+            "--waiting-time-memory", "1000",
+            "--time-to-teleport", "-1" # Sıkışan araçlar ışınlanmasın (gerçekçi olsun)
+        ]
+
+        # GUI ise start komutlarını ekle
+        self.sumo_cmd.extend(self.extra_params)
+
         # Simülasyonu başa sar
         traci.start(self.sumo_cmd)
 
@@ -178,7 +195,7 @@ class SUMOTrafikOrtami(gym.Env):
 
     def _get_observation(self):
         
-        # Tüm kavşakların verilerini tek bri uzun dizide bilrleştiriyoruz
+        # Tüm kavşakların verilerini tek bir uzun dizide bilrleştiriyoruz
         tum_gozlem = []
         
         for tls in self.tls_verileri:
@@ -196,6 +213,7 @@ class SUMOTrafikOrtami(gym.Env):
 
     def step(self, action):
         toplam_ceza = 0
+        toplam_cikis_odulu = 0 # Outflow (Havuç)
         
         # 1. HER KAVŞAK İÇİN AKSİYONU UYGULA
         for i, tls in enumerate(self.tls_verileri):
@@ -250,20 +268,22 @@ class SUMOTrafikOrtami(gym.Env):
         for _ in range(sim_step_per_action):
             traci.simulationStep()
             self.sim_step += 1
-            toplam_ceza += self._hesapla_anlik_ceza()
+            toplam_ceza += self._hesapla_anlik_ceza()   
+
+            toplam_cikis_odulu += self._hesapla_anlik_odul()
 
         # 3. GÖZLEM VE ÖDÜL
         obs = self._get_observation()
         
         # ÖDÜL FONKSİYONU REVİZYONU
         # WaitingTime yerine HaltingNumber kullanmak eğitimi hızlandırır.
-        # Çünkü waitingTime kümülatiftir (geçmişi hatırlar), HaltingNumber anlıktır.
-        reward = -1 * (toplam_ceza / 100.0) 
-
+        # Artık hem ödül hem ceza veriyor.
+        reward = ((toplam_cikis_odulu * 0.5) - (toplam_ceza * 1.0)) / 100.0
         # Loglama
+        '''
         if self.sim_step % 100 == 0:
             print(f"Adım: {self.sim_step}, Ödül: {reward:.2f}, Eylem: {action}")
-
+        '''
         terminated = self.sim_step >= self.max_steps
 
         return obs, reward, terminated, False, {}
@@ -277,3 +297,20 @@ class SUMOTrafikOrtami(gym.Env):
                 # Kuyruk uzunluğunu (duran araç sayısı) ceza olarak al
                 anlik_ceza += traci.lane.getLastStepHaltingNumber(lane)
         return anlik_ceza
+    
+    def _hesapla_anlik_odul(self):
+        anlik_hareketlilik = 0
+        
+        for tls in self.tls_verileri:
+            for lane in tls["lanes"]:
+                # 1. O şeritteki toplam araç sayısı (Duran + Giden)
+                toplam_arac = traci.lane.getLastStepVehicleNumber(lane)
+                # 2. O şeritte duran araç sayısı
+                duran_arac = traci.lane.getLastStepHaltingNumber(lane)
+                # 3. Hareket edenleri bul
+                hareket_eden = toplam_arac - duran_arac
+                # Eğer hareket eden varsa puana ekle
+                if hareket_eden > 0:
+                    anlik_hareketlilik += hareket_eden
+                    
+        return anlik_hareketlilik
