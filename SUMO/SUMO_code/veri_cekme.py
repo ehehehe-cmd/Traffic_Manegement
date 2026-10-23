@@ -4,7 +4,7 @@ import traceback
 import xml.etree.ElementTree as ET
 import random
 import sumolib
-import math
+import time
 
 
 if 'SUMO_HOME' not in os.environ:
@@ -241,8 +241,10 @@ def get_tls_action_spaces (sumo_cfg_path):
 
 
 if __name__ == "__main__":
-    #SUMO'nun .sumocfg uzantısı buraya yazılmalı
+    #NOTE - Zaman ölçümü başlangıç
+    baslangic_zamani = time.perf_counter()
 
+    #SUMO'nun .sumocfg uzantısı buraya yazılmalı
     CONFIG_PATH = "SUMO/SUMO_map/test.sumocfg"
 
     DESICION_INTERVAL = 20
@@ -261,7 +263,7 @@ if __name__ == "__main__":
 
 
         #TEST AMAÇLI OLAN KISIM sumo-gui kullanabilirsin ui için
-        sumo_cmd = ["sumo-gui", "-c", CONFIG_PATH, "--no-step-log", "true"]
+        sumo_cmd = ["sumo", "-c", CONFIG_PATH, "--no-step-log", "true"]
         traci.start(sumo_cmd)
 
         #Komşulukları belirleme
@@ -269,7 +271,7 @@ if __name__ == "__main__":
         print(f"Komşuluk matrisi {neighbors}\n")
         
         #Simülasyonu X adım çalıştırıp test et
-        for step in range(120):
+        for step in range(3600):
             traci.simulationStep()
 
             #NOTE - Önce  bunu çağırman lazım
@@ -319,9 +321,17 @@ if __name__ == "__main__":
                     state = traci.trafficlight.getRedYellowGreenState(tls_id)
                     print(f"Adım {step} | {tls_id} | aksiyon={action_id} " f"| faz={cur} | ışık={state}")
 
+    
+
     except Exception as e:
         print(f"\nKod çalışırken bir hata oluştu: {e}")
         traceback.print_exc()
 
     finally:
         traci.close()
+        #NOTE - Zaman ölçümü bitiş True False 120step :farkı 2.13541 -> 0.02750 77x, 3600step: fark 5.24526 -> 1.20300 4x fark
+        bitis_zamani = time.perf_counter()
+
+        calisma_suresi = bitis_zamani - baslangic_zamani
+    print(f"Kodun çalışma süresi: {calisma_suresi:.5f} saniye")
+        
